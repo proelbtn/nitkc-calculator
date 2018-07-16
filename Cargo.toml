@@ -1,0 +1,6 @@
+[package]
+name = "school-calculator"
+version = "0.1.0"
+authors = ["proelbtn <proelbtn@users.noreply.github.com>"]
+
+[dependencies]

@@ -5,6 +5,8 @@ enum Token {
     Asterisk,
     Slash,
     Semicolon,
+    Openparen,
+    Closeparen,
     Number(u32)
 }
 
@@ -20,6 +22,8 @@ fn lexer(s: &str) -> Vec<Token> {
             '*' => vec.push(Token::Asterisk),
             '/' => vec.push(Token::Slash),
             ';' => vec.push(Token::Semicolon),
+            '(' => vec.push(Token::Openparen),
+            ')' => vec.push(Token::Closeparen),
             '0' ... '9' => {
                 let mut val: Vec<u8> = Vec::new();
                 while i < buf.len() {

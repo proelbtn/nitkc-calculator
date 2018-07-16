@@ -10,6 +10,73 @@ enum Token {
     Number(u32)
 }
 
+#[derive(Debug)]
+enum EElement {
+    Plus,
+    Minus,
+    T(Box<ASTNode>)
+}
+
+#[derive(Debug)]
+enum TElement {
+    Asterisk,
+    Slash,
+    F(Box<ASTNode>)
+}
+
+#[derive(Debug)]
+enum ASTNode {
+    S(Box<ASTNode>), 
+    E(Vec<Box<EElement>>),
+    T(Vec<Box<TElement>>),
+    F(Box<ASTNode>),
+    N(u32),
+}
+
+impl ASTNode {
+    fn show(&self) {
+        match self {
+            ASTNode::S(node) => {
+                print!("(S ");
+                node.show();
+                print!(")");
+            },
+            ASTNode::E(vec) => {
+                print!("(E");
+                for elem in vec.iter() {
+                    print!(" ");
+                    match **elem {
+                        EElement::Plus => print!("+"),
+                        EElement::Minus => print!("-"),
+                        EElement::T(ref node) => node.show(),
+                    }
+                }
+                print!(")");
+            },
+            ASTNode::T(vec) => {
+                print!("(T");
+                for elem in vec.iter() {
+                    print!(" ");
+                    match **elem {
+                        TElement::Asterisk => print!("*"),
+                        TElement::Slash => print!("/"),
+                        TElement::F(ref node) => node.show(),
+                    }
+                }
+                print!(")");
+            },
+            ASTNode::F(node) => {
+                print!("(F ");
+                node.show();
+                print!(")");
+            },
+            ASTNode::N(num) => {
+                print!("(N {})", num)
+            },
+        }
+    }
+}
+
 fn lexer(s: &str) -> Vec<Token> {
     let buf = s.trim().as_bytes();
     let mut vec: Vec<Token> = Vec::new();
@@ -36,7 +103,7 @@ fn lexer(s: &str) -> Vec<Token> {
                 let valstr = String::from_utf8(val).unwrap();
                 vec.push(Token::Number(valstr.parse::<u32>().unwrap()))
             }
-            _ => panic!("unexpected!")
+            _ => panic!("unexpected")
         }
         i += 1;
     } 
@@ -44,13 +111,122 @@ fn lexer(s: &str) -> Vec<Token> {
     return vec;
 }
 
+fn read_number(tokens: &Vec<Token>, pos: usize) -> (Box<ASTNode>, usize) {
+    match tokens[pos] {
+        Token::Number(num) => (Box::new(ASTNode::N(num)), pos + 1),
+        _ => panic!("unexpected")
+    }
+}
+
+fn read_factor(tokens: &Vec<Token>, pos: usize) -> (Box<ASTNode>, usize) {
+    match tokens[pos] {
+        Token::Number(_) => {
+            let (node, pos) = read_number(tokens, pos);
+            (Box::new(ASTNode::F(node)), pos)
+        },
+        Token::Openparen => {
+            let (node, pos) = read_expression(tokens, pos + 1);
+            match tokens[pos] {
+                Token::Closeparen => (Box::new(ASTNode::F(node)), pos + 1),
+                _ => panic!("unexpected")
+            }
+        },
+        _ => panic!("unexpected")
+    }
+}
+
+fn read_term(tokens: &Vec<Token>, pos: usize) -> (Box<ASTNode>, usize) {
+    let mut vec: Vec<Box<TElement>> = Vec::new();
+
+    let (node, mut pos) = read_factor(tokens, pos);
+    vec.push(Box::new(TElement::F(node)));
+
+    loop {
+        if pos < tokens.len() {
+            match tokens[pos] {
+                Token::Asterisk => {
+                    vec.push(Box::new(TElement::Asterisk));
+                    let (node, t) = read_factor(tokens, pos + 1);
+                    vec.push(Box::new(TElement::F(node)));
+                    pos = t;
+                },
+                Token::Slash => {
+                    vec.push(Box::new(TElement::Slash));
+                    let (node, t) = read_factor(tokens, pos + 1);
+                    vec.push(Box::new(TElement::F(node)));
+                    pos = t;
+                },
+                _ => break
+            }
+        }
+        else { break }
+    }
+
+    return (Box::new(ASTNode::T(vec)), pos);
+}
+
+fn read_expression(tokens: &Vec<Token>, pos: usize) -> (Box<ASTNode>, usize) {
+    let mut pos = pos;
+    let mut vec: Vec<Box<EElement>> = Vec::new();
+
+    if pos < tokens.len() {
+        match tokens[pos] {
+            Token::Plus => {
+                vec.push(Box::new(EElement::Plus));
+                pos = pos + 1;
+            },
+            Token::Minus => {
+                vec.push(Box::new(EElement::Minus));
+                pos = pos + 1;
+            },
+            _ => ()
+        }
+    }
+
+    let (node, mut pos) = read_term(tokens, pos);
+    vec.push(Box::new(EElement::T(node)));
+
+    loop {
+        if pos < tokens.len() {
+            match tokens[pos] {
+                Token::Plus => {
+                    vec.push(Box::new(EElement::Plus));
+                    let (node, t) = read_term(tokens, pos + 1);
+                    vec.push(Box::new(EElement::T(node)));
+                    pos = t;
+                },
+                Token::Minus => {
+                    vec.push(Box::new(EElement::Minus));
+                    let (node, t) = read_term(tokens, pos + 1);
+                    vec.push(Box::new(EElement::T(node)));
+                    pos = t;
+                },
+                _ => break
+            }
+        }
+        else { break }
+    }
+
+    return (Box::new(ASTNode::E(vec)), pos);
+}
+
+fn read_statement(tokens: &Vec<Token>, pos: usize) -> (Box<ASTNode>, usize) {
+    let (node, pos) = read_expression(tokens, pos);
+    match tokens[pos] {
+        Token::Semicolon => (Box::new(ASTNode::S(node)), pos + 1),
+        _ => panic!("unexpected")
+    }
+}
+
+fn parser(tokens: &Vec<Token>) -> Box<ASTNode> {
+    return read_statement(tokens, 0).0;
+}
+
 fn main() {
     let mut s = String::new();
-    std::io::stdin().read_line(&mut s);
+    std::io::stdin().read_line(&mut s).ok();
     
     let tokens = lexer(&s);
-
-    for token in tokens {
-        println!("{:?}", token);
-    }
+    let ast = parser(&tokens);
+    ast.show();
 }

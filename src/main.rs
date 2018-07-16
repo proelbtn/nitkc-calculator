@@ -7,7 +7,7 @@ enum Token {
     Semicolon,
     Openparen,
     Closeparen,
-    Number(u32)
+    Number(u64)
 }
 
 #[derive(Debug)]
@@ -30,7 +30,7 @@ enum ASTNode {
     E(Vec<Box<EElement>>),
     T(Vec<Box<TElement>>),
     F(Box<ASTNode>),
-    N(u32),
+    N(u64),
 }
 
 impl ASTNode {
@@ -39,7 +39,7 @@ impl ASTNode {
             ASTNode::S(node) => {
                 print!("(S ");
                 node.show();
-                print!(")");
+                println!(")");
             },
             ASTNode::E(vec) => {
                 print!("(E");
@@ -75,6 +75,92 @@ impl ASTNode {
             },
         }
     }
+
+    fn eval(&self) -> f64 {
+        match self {
+            ASTNode::S(node) => node.eval(),
+            ASTNode::E(vec) => {
+                let mut i = 0;
+                let mut val: f64 = 0.;
+
+                match *vec[0] {
+                    EElement::T(ref node) => {
+                        val = node.eval();
+                        i = 1;
+                    }
+                    _ => (),
+                };
+
+                while i < vec.len() {
+                    match *vec[i] {
+                        EElement::Plus => {
+                            match *vec[i + 1] {
+                                EElement::T(ref node) => {
+                                    val = val + node.eval();
+                                }
+                                _ => panic!("unexpected")
+                            }
+                            i += 2;
+                        },
+                        EElement::Minus => {
+                            match *vec[i + 1] {
+                                EElement::T(ref node) => {
+                                    val = val - node.eval();
+                                }
+                                _ => panic!("unexpected")
+                            }
+                            i += 2;
+                        },
+                        _ => panic!("unexpected"),
+                    };
+                }
+
+                return val;
+            },
+            ASTNode::T(vec) => {
+                let mut i = 0;
+                let mut val: f64 = 0.;
+
+                match *vec[0] {
+                    TElement::F(ref node) => {
+                        val = node.eval();
+                        i = 1;
+                    }
+                    _ => panic!("unexpected"),
+                };
+
+                while i < vec.len() {
+                    match *vec[i] {
+                        TElement::Asterisk => {
+                            match *vec[i + 1] {
+                                TElement::F(ref node) => {
+                                    val = val * node.eval();
+                                }
+                                _ => panic!("unexpected")
+                            }
+                            i += 2;
+                        },
+                        TElement::Slash => {
+                            match *vec[i + 1] {
+                                TElement::F(ref node) => {
+                                    val = val / node.eval();
+                                }
+                                _ => panic!("unexpected")
+                            }
+                            i += 2;
+                        },
+                        _ => panic!("unexpected"),
+                    };
+                }
+
+                return val;
+            },
+            ASTNode::F(node) => {
+                return node.eval();
+            },
+            ASTNode::N(num) => *num as f64
+        }
+    }
 }
 
 fn lexer(s: &str) -> Vec<Token> {
@@ -101,7 +187,7 @@ fn lexer(s: &str) -> Vec<Token> {
                 i -= 1;
 
                 let valstr = String::from_utf8(val).unwrap();
-                vec.push(Token::Number(valstr.parse::<u32>().unwrap()))
+                vec.push(Token::Number(valstr.parse::<u64>().unwrap()))
             }
             _ => panic!("unexpected")
         }
@@ -229,4 +315,5 @@ fn main() {
     let tokens = lexer(&s);
     let ast = parser(&tokens);
     ast.show();
+    println!("ans : {}", ast.eval());
 }
